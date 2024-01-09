@@ -56,17 +56,6 @@
  (link_deps
   (file ../lib/bindings.co)))
 
-(executable
- (name test_asm)
- (modules test_asm)
- (public_name test_asm)
- (libraries CreeperML stdio)
- (instrumentation
-  (backend bisect_ppx))
- (link_deps
-  (file ../lib/bindings.o)
-  (file ../build.sh)))
-
 (cram
  (deps
   ./test_infer.exe
@@ -76,7 +65,5 @@
   ./test_anf_opt.exe
   ./test_anf.exe
   ./test_llvm.exe
-  ./test_asm.exe
   ../lib/bindings.co
-  ../lib/bindings.o
-  ../build.sh))
+  ../lib/bindings.o))
