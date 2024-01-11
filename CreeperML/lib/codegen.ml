@@ -13,9 +13,6 @@ module Codegen = struct
   type funvar =
     | Var of anf_val_binding * (anf_val_binding -> llvalue t)
     | Val of llvalue
-  (* | Closure of (llvalue * int) *)
-
-  type tmp = TMP | NOTMP
 
   let contex = global_context ()
   let max_fun = 64
@@ -32,6 +29,8 @@ module Codegen = struct
   let int_const = const_int integer_type
   let str_name n = typed_value n |> string_of_int
   let last_orig_v = ref (const_null integer_type, false)
+  let load_int v = build_load integer_type v "loadint" builder
+  let load_float v = build_load float_type v "loadfloat" builder
 
   let arity =
     let rec helper = function TyArrow (_, r) -> 1 + helper r | _ -> 0 in
@@ -59,18 +58,28 @@ module Codegen = struct
       [| f; argc |> int_const; argv_adr; arity; arity |]
       "closurecreate" builder
 
+  let put_to_ptr v =
+    let addr = build_alloca (type_of v) "polytmp" builder in
+    ignore (build_store v addr builder);
+    addr
+
+  let tmp_v v t =
+    let new_addr = build_alloca t "tm1000pnewaddr" builder in
+    let data = build_load t v "tm1000ptmp" builder in
+    ignore (build_store data new_addr builder);
+    new_addr
+
+  let apply_closure cl argv argc =
+    let apply_t = function_type ptr [| ptr; integer_type; ptr |] in
+    let apply = declare_function "apply_args" apply_t the_module in
+    build_call apply_t apply
+      [| cl; int_const argc; argv |]
+      "applyclosure" builder
+
   let try_find name msg =
     match Hashtbl.find_opt named_values name with
     | Some v -> (
-        match v with
-        | Var (bind, binder) ->
-            binder bind
-            (* >>| fun r ->
-               Hashtbl.replace named_values name (Val r);
-               r *)
-        | Val l ->
-            return l
-            (* | Closure (f, arity) -> alloc_closure f [||] arity |> return *))
+        match v with Var (bind, binder) -> binder bind | Val l -> return l)
     | None -> error msg
 
   let try_find_opt name =
@@ -94,7 +103,7 @@ module Codegen = struct
         in
         let args, r = args arr in
         function_type (get_type r) (List.map get_type args |> Array.of_list)
-    | _ -> ptr
+    | TyVar _ -> ptr
 
   let codegen_imm = function
     | ImmLit t ->
@@ -104,22 +113,16 @@ module Codegen = struct
         | LBool b -> const_int bool_type (if b then 1 else 0)
         | LUnit -> const_pointer_null unit_type
         | LString str ->
-            let l = String.length str in
-            let str =
-              String.mapi (fun i c -> if i = 0 || i = l - 1 then ' ' else c) str
-              |> String.trim
-            in
+            let str = String.length str - 2 |> String.sub str 1 in
             build_global_stringptr str "" builder)
         |> return
     | ImmVal t -> (
         let name = str_name t in
-        match
-          (lookup_function (String.cat "f" name) the_module, try_find_opt name)
-        with
+        let f_name = String.cat "f" name in
+        match (lookup_function f_name the_module, try_find_opt name) with
         | _, Some f -> return f
         | Some f, _ ->
-            String.cat "f" name
-            |> Hashtbl.find function_types
+            Hashtbl.find function_types f_name
             |> arity |> alloc_closure f [||] |> return
         | _ ->
             Printf.sprintf "Can't find function/value at number %s" name
@@ -129,93 +132,69 @@ module Codegen = struct
 
   let codegen_sig { value = name; typ = t } args =
     let name = Printf.sprintf "f%d" name in
-    let ft =
-      List.map (fun _ -> ptr) args
-      |> Array.of_list
-      |> function_type (* rez_t t |> get_type *) ptr
-    in
+    let args_ts = List.map typ args in
+    let args_names = List.map str_name args in
+    let ft = Array.make (List.length args) ptr |> function_type ptr in
     let* f =
       match lookup_function name the_module with
       | None -> declare_function name ft the_module |> return
-      | Some f ->
-          if block_begin f <> At_end f then error "redefinition of function"
-          else if element_type (type_of f) <> ft then
-            error "redefinition of function"
-          else return f
+      | Some f -> (
+          match block_begin f with
+          | At_end f when type_of f |> element_type = ft -> return f
+          | _ -> error "redefinition of function")
     in
-    let orig_ft =
-      rez_t t |> List.fold_right (fun a acc -> TyArrow (typ a, acc)) args
-    in
-    let _ = Hashtbl.add function_types name orig_ft in
+    let orig_ft = rez_t t |> List.fold_right ty_arrow args_ts in
+    ignore (Hashtbl.add function_types name orig_ft);
     let _ =
-      List.iter
-        (fun a ->
-          match typ a with
-          | TyArrow _ as t ->
-              Hashtbl.add function_types (str_name a |> String.cat "f") t
+      List.iter2
+        (fun name -> function
+          | TyArrow _ as t -> Hashtbl.add function_types (String.cat "f" name) t
           | _ -> ())
-        args
+        args_names args_ts
     in
     Array.iteri
       (fun i e ->
-        let a = List.nth args i in
-        let n = a |> str_name in
+        let n = List.nth args_names i in
         set_value_name n e;
-        (* let to_add =
-             match typ a with
-             | TyArrow _ -> Closure (e, typ a |> arity)
-             | _ -> Val e
-           in *)
-        Hashtbl.add named_values n (* to_add *) (Val e))
+        Hashtbl.add named_values n (Val e))
       (params f);
     return f
 
   let codegen_predef name argv =
-    let op_int f argv =
-      let lhs = build_load integer_type argv.(0) "opintpoly" builder in
-      let rhs = build_load integer_type argv.(1) "opintpoly" builder in
+    let op f argv load_f =
+      let lhs = load_f argv.(0) in
+      let rhs = load_f argv.(1) in
       f lhs rhs "op" builder |> return
     in
-    let bin_op_int f argv =
-      let lhs = build_load integer_type argv.(0) "binopintpoly" builder in
-      let rhs = build_load integer_type argv.(1) "binopintpoly" builder in
-      let i = f lhs rhs "cmptmp" builder in
-      build_zext i integer_type "booltmp" builder |> return
-    in
-    let op_float f argv =
-      let lhs = build_load float_type argv.(0) "opintpoly" builder in
-      let rhs = build_load float_type argv.(1) "opintpoly" builder in
-      f lhs rhs "op" builder |> return
-    in
-    let bin_op_float f argv =
-      let lhs = build_load float_type argv.(0) "binopintpoly" builder in
-      let rhs = build_load float_type argv.(1) "binopintpoly" builder in
+    let bin_op f argv load_f =
+      let lhs = load_f argv.(0) in
+      let rhs = load_f argv.(1) in
       let i = f lhs rhs "cmptmp" builder in
       build_zext i integer_type "booltmp" builder |> return
     in
     match name with
-    | "f1" (* - *) -> op_int build_sub argv
-    | "f2" (* + *) -> op_int build_add argv
-    | "f3" (* * *) -> op_int build_mul argv
-    | "f4" (* / *) -> op_int build_sdiv argv
-    | "f5" (* <= *) -> bin_op_int (build_icmp Icmp.Sle) argv
-    | "f6" (* < *) -> bin_op_int (build_icmp Icmp.Slt) argv
-    | "f7" (* == *) -> bin_op_int (build_icmp Icmp.Eq) argv
-    | "f8" (* > *) -> bin_op_int (build_icmp Icmp.Sgt) argv
-    | "f9" (* >= *) -> bin_op_int (build_icmp Icmp.Sge) argv
-    | "f10" (* -. *) -> op_float build_fsub argv
-    | "f11" (* +. *) -> op_float build_fadd argv
-    | "f12" (* *. *) -> op_float build_fmul argv
-    | "f13" (* /. *) -> op_float build_fdiv argv
-    | "f14" (* <=. *) -> bin_op_float (build_fcmp Fcmp.Ole) argv
-    | "f15" (* <. *) -> bin_op_float (build_fcmp Fcmp.Olt) argv
-    | "f16" (* ==. *) -> bin_op_float (build_fcmp Fcmp.Oeq) argv
-    | "f17" (* >. *) -> bin_op_float (build_fcmp Fcmp.Olt) argv
-    | "f18" (* >=. *) -> bin_op_float (build_fcmp Fcmp.Olt) argv
+    | "f1" (* - *) -> op build_sub argv load_int
+    | "f2" (* + *) -> op build_add argv load_int
+    | "f3" (* * *) -> op build_mul argv load_int
+    | "f4" (* / *) -> op build_sdiv argv load_int
+    | "f5" (* <= *) -> bin_op (build_icmp Icmp.Sle) argv load_int
+    | "f6" (* < *) -> bin_op (build_icmp Icmp.Slt) argv load_int
+    | "f7" (* == *) -> bin_op (build_icmp Icmp.Eq) argv load_int
+    | "f8" (* > *) -> bin_op (build_icmp Icmp.Sgt) argv load_int
+    | "f9" (* >= *) -> bin_op (build_icmp Icmp.Sge) argv load_int
+    | "f10" (* -. *) -> op build_fsub argv load_float
+    | "f11" (* +. *) -> op build_fadd argv load_float
+    | "f12" (* *. *) -> op build_fmul argv load_float
+    | "f13" (* /. *) -> op build_fdiv argv load_float
+    | "f14" (* <=. *) -> bin_op (build_fcmp Fcmp.Ole) argv load_float
+    | "f15" (* <. *) -> bin_op (build_fcmp Fcmp.Olt) argv load_float
+    | "f16" (* ==. *) -> bin_op (build_fcmp Fcmp.Oeq) argv load_float
+    | "f17" (* >. *) -> bin_op (build_fcmp Fcmp.Olt) argv load_float
+    | "f18" (* >=. *) -> bin_op (build_fcmp Fcmp.Olt) argv load_float
     | "f19" ->
         let ft = function_type unit_type [| integer_type |] in
         let f = declare_function "print_int" ft the_module in
-        let arg = build_load integer_type argv.(0) "printintargpoly" builder in
+        let arg = load_int argv.(0) in
         build_call ft f [| arg |] "" builder |> return
     | "f20" ->
         let ft = function_type unit_type [| ptr |] in
@@ -223,21 +202,18 @@ module Codegen = struct
         build_call ft f [| argv.(0) |] "" builder |> return
     | name -> Printf.sprintf "fail predef ar %s" name |> error
 
+  type tmp = TMP | NOTMP
+
   let rec codegen_expr =
     let apply_to_closure f cl args tmp =
       let argc = List.length args in
       let* argv =
-        let* argv = monadic_map args codegen_imm in
-        List.map
-          (fun a ->
-            type_of a |> classify_type |> function
+        monadic_map args (fun a ->
+            codegen_imm a >>| fun a ->
+            match type_of a |> classify_type with
             | TypeKind.Pointer -> a
-            | _ ->
-                let addr = build_alloca (type_of a) "polytmp" builder in
-                ignore (build_store a addr builder);
-                addr)
-          argv
-        |> Array.of_list |> return
+            | _ -> put_to_ptr a)
+        >>| Array.of_list
       in
       let argv_adr = build_malloc (array_type ptr argc) "arraymalloc" builder in
       let alloc i e =
@@ -249,25 +225,13 @@ module Codegen = struct
         ignore (build_store e addr builder)
       in
       Array.iteri alloc argv;
-      let apply_t = function_type ptr [| ptr; integer_type; ptr |] in
-      let apply = declare_function "apply_args" apply_t the_module in
-      let rz =
-        build_call apply_t apply
-          [| cl; int_const argc; argv_adr |]
-          "applyclosure" builder
-      in
+      let rz = apply_closure cl argv_adr argc in
       ignore (last_orig_v := (rz, true));
-      let rz =
-        match (typ f |> rez_t, tmp) with
-        | TyGround TUnit, _ -> rz
-        | t, TMP ->
-            let new_addr = build_alloca (get_type t) "tm1000pnewaddr" builder in
-            let data = build_load (get_type t) rz "tm1000ptmp" builder in
-            ignore (build_store data new_addr builder);
-            new_addr
-        | _ -> rz
-      in
-      return rz
+      (match (typ f |> rez_t, tmp) with
+      | TyGround TUnit, _ -> rz
+      | t, TMP -> get_type t |> tmp_v rz
+      | _ -> rz)
+      |> return
     in
     function
     | AImm imm -> codegen_imm imm
@@ -300,7 +264,7 @@ module Codegen = struct
         let* cond =
           codegen_imm cond >>| fun c ->
           match type_of c |> classify_type with
-          | TypeKind.Pointer -> build_load integer_type c "condload" builder
+          | TypeKind.Pointer -> load_int c
           | _ -> c
         in
         let cond_val = build_icmp Icmp.Eq cond (int_const 0) "cond" builder in
@@ -386,12 +350,7 @@ module Codegen = struct
             match (typ name |> rez_t, type_of ret_val |> classify_type) with
             | TyGround TUnit, _ -> const_pointer_null ptr
             | _, TypeKind.Pointer -> ret_val
-            | _ ->
-                let addr =
-                  build_alloca (type_of ret_val) "polyrezzzz" builder
-                in
-                ignore (build_store ret_val addr builder);
-                addr
+            | _ -> put_to_ptr ret_val
           in
           ignore (build_ret ret_val builder);
           return ()
@@ -408,7 +367,7 @@ module Codegen = struct
             (with_typ r (n + (-1 * number * max_fun)) :: tl, n - 1)
         | _ -> ([], -1)
       in
-      helper (typ op) |> fst |> List.rev
+      typ op |> helper |> fst |> List.rev
     in
     let* f = codegen_sig op args in
     let bb = append_block contex "entry" f in
@@ -421,10 +380,7 @@ module Codegen = struct
       match (typ op |> rez_t, type_of ret_val |> classify_type) with
       | TyGround TUnit, _ -> const_pointer_null ptr
       | _, TypeKind.Pointer -> ret_val
-      | _ ->
-          let addr = build_alloca (type_of ret_val) "polyrezzzz" builder in
-          ignore (build_store ret_val addr builder);
-          addr
+      | _ -> put_to_ptr ret_val
     in
     ignore (build_ret ret_val builder);
     return ()
@@ -460,11 +416,7 @@ module Codegen = struct
       (match top_lvl code with
       | Error err -> print_endline err
       | _ -> dmp_code output_ll);
-    let _ =
-      Printf.sprintf (* "opt -f -S %s -o %s -Oz" *) "cp %s %s" output_ll
-        output_opt_ll
-      |> Sys.command
-    in
+    let _ = Printf.sprintf "cp %s %s" output_ll output_opt_ll |> Sys.command in
     let _ =
       Printf.sprintf "llc --relocation-model=pic %s" output_opt_ll
       |> Sys.command
