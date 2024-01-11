@@ -1,4 +1,4 @@
-+------------------+
++------------------+i_0
 |  Factorial test  |
 +------------------+
   $ ./test_anf.exe <<- EOF
@@ -11,23 +11,26 @@
   > in
   > helper n 1
   > EOF
-  let (7)  (43) (44) = 
-    let (8) = v(43)
-    let (9) = v(44)
-    let (38) = v(1) v(8) l(1)
-    let (42) = if v(38) then
-      v(9)
+  let (luhelper_1)  (i_8) (i_7) =
+    let (uacc_3) = i_7
+    let (un_2) = i_8
+    let (i_2) = <= un_2 1
+    let (i_6) = if i_2 then
+      uacc_3
     else
-      let (39) = v(2) v(8) l(1)
-      let (40) = v(3) v(8) v(9)
-      let (41) = v(7) v(39) v(40)
-      v(41)
-    v(42)
+      let (i_3) = * un_2 uacc_3
+      let (i_4) = - un_2 1
+      let (i_5) = uhelper_1 i_4 i_3
+      i_5
+    i_6
   
-  let (10)  (46) = 
-    let (6) = v(46)
-    let (45) = v(7) v(6) l(1)
-    v(45)
+  let (lufac_4)  (i_1) =
+    let (un_0) = i_1
+    let (uhelper_1) = luhelper_1
+    let (i_0) = uhelper_1 un_0 1
+    i_0
+  
+  let (ufac_4) = lufac_4
 
 +------------------------+
 |  Simple expr test      |
@@ -42,11 +45,11 @@
   $ ./test_anf.exe <<- EOF
   > let res = 1 + 2 + 3
   > EOF
-  let (16) = v(4) l(1) l(2)
+  let (i_0) = + 1 2
   
-  let (17) = v(4) v(16) l(3)
+  let (i_1) = + i_0 3
   
-  let (6) = v(17)
+  let (ures_0) = i_1
 
 +-----------------------------------+
 |  Test with functions              |
@@ -73,20 +76,22 @@
   >   in g
   > let res = f 10 11
   > EOF
-  let (8) [6] (25) = 
-    let (7) = v(25)
-    let (24) = v(4) v(6) v(7)
-    v(24)
+  let (lug_2) [ux_0] (i_4) =
+    let (uy_1) = i_4
+    let (i_3) = + ux_0 uy_1
+    i_3
   
-  let (9)  (27) = 
-    let (6) = v(27)
-    let (26) = clsr[v(8)][v(6)]
-    let (8) = v(26)
-    v(8)
+  let (luf_3)  (i_2) =
+    let (ux_0) = i_2
+    let (i_1) = clsr[lug_2][ux_0]
+    let (ug_2) = i_1
+    ug_2
   
-  let (28) = v(9) l(10) l(11)
+  let (uf_3) = luf_3
   
-  let (10) = v(28)
+  let (i_0) = uf_3 10 11
+  
+  let (ures_4) = i_0
 
 +----------------------------------+
 |  If-then-else test               |
@@ -116,18 +121,18 @@
   $ ./test_anf.exe <<- EOF
   > let r = if 3 + 5 <= 22 then 2 - 3 else 4 + 5
   > EOF
-  let (27) = v(4) l(3) l(5)
+  let (i_0) = + 3 5
   
-  let (28) = v(1) v(27) l(22)
+  let (i_1) = <= i_0 22
   
-  let (31) = if v(28) then
-    let (29) = v(2) l(2) l(3)
-    v(29)
+  let (i_4) = if i_1 then
+    let (i_2) = - 2 3
+    i_2
   else
-    let (30) = v(4) l(4) l(5)
-    v(30)
+    let (i_3) = + 4 5
+    i_3
   
-  let (6) = v(31)
+  let (ur_0) = i_4
 
 +-----------------------+
 |  More if-then-else    |
@@ -136,74 +141,90 @@
   $ ./test_anf.exe <<- EOF
   > let r = if (if 2 - 10 <= 2 then false else true) then 2 - 3 else (if true then 77 - 33 + 23 else (25 + 11 * 3))
   > EOF
-  let (45) = v(2) l(2) l(10)
+  let (i_0) = - 2 10
   
-  let (46) = v(1) v(45) l(2)
+  let (i_1) = <= i_0 2
   
-  let (47) = if v(46) then
-    l(false)
+  let (i_2) = if i_1 then
+    false
   else
-    l(true)
+    true
   
-  let (54) = if v(47) then
-    let (48) = v(2) l(2) l(3)
-    v(48)
+  let (i_9) = if i_2 then
+    let (i_3) = - 2 3
+    i_3
   else
-    let (53) = if l(true) then
-      let (49) = v(2) l(77) l(33)
-      let (50) = v(4) v(49) l(23)
-      v(50)
+    let (i_8) = if true then
+      let (i_4) = - 77 33
+      let (i_5) = + i_4 23
+      i_5
     else
-      let (51) = v(3) l(11) l(3)
-      let (52) = v(4) l(25) v(51)
-      v(52)
-    v(53)
+      let (i_6) = * 11 3
+      let (i_7) = + 25 i_6
+      i_7
+    i_8
   
-  let (6) = v(54)
+  let (ur_0) = i_9
 
 +--------------------------+
 |  Tuples                  |
 |  Decomposing a tuple is  |
 |  done like an index      |
 +--------------------------+
-  $ ./test_anf_opt.exe <<- EOF
+  $ ./test_anf.exe <<- EOF
   > let (a, b, c) = (10 + 11, 12 + 13, 14 + 15)
   > let x = (a, (b, c))
   > let (c, (d, e)) = x
   > let res = c + d + e
   > EOF
-  let (45) = v(4) l(10) l(11)
+  let (i_8) = + 14 15
   
-  let (46) = v(4) l(12) l(13)
+  let (i_9) = + 12 13
   
-  let (47) = v(4) l(14) l(15)
+  let (i_10) = + 10 11
   
-  let (48) = (v(45), v(46), v(47))
+  let (i_11) = (i_10, i_9, i_8)
   
-  let (49) = v(48)[0]
+  let (i_14) = i_11[2]
   
-  let (50) = v(48)[1]
+  let (uc_2) = i_14
   
-  let (51) = v(48)[2]
+  let (i_13) = i_11[1]
   
-  let (52) = (v(50), v(51))
+  let (ub_1) = i_13
   
-  let (53) = (v(49), v(52))
+  let (i_12) = i_11[0]
   
-  let (54) = v(53)[0]
+  let (ua_0) = i_12
   
-  let (55) = v(53)[1]
+  let (i_6) = (ub_1, uc_2)
   
-  let (56) = v(55)[0]
+  let (i_7) = (ua_0, i_6)
   
-  let (57) = v(55)[1]
+  let (ux_3) = i_7
   
-  let (58) = v(4) v(54) v(56)
+  let (i_3) = ux_3[1]
   
-  let (59) = v(4) v(58) v(57)
+  let (i_5) = i_3[1]
+  
+  let (ue_6) = i_5
+  
+  let (i_4) = i_3[0]
+  
+  let (ud_5) = i_4
+  
+  let (i_2) = ux_3[0]
+  
+  let (uc_4) = i_2
+  
+  let (i_0) = + uc_4 ud_5
+  
+  let (i_1) = + i_0 ue_6
+  
+  let (ures_7) = i_1
 
 +------------------+
-|  Big goody test  |
+|  Big goofy test  |
 +------------------+
   $ ./test_anf.exe <<- EOF
   > let a = 10 + 11 * 32
@@ -220,82 +241,86 @@
   > let s = g 55 66 77 88
   > let res = a + b - c + d * (s e (f 19)) + p
   > EOF
-  let (156) = v(3) l(11) l(32)
+  let (luh_13) [ua_7] [ub_8] [uc_9] (i_34) (i_33) (i_32) =
+    let (uf_12) = i_32
+    let (ue_11) = i_33
+    let (ud_10) = i_34
+    let (i_26) = * 2 uf_12
+    let (i_27) = * ud_10 ue_11
+    let (i_28) = * ub_8 uc_9
+    let (i_29) = + ua_7 i_28
+    let (i_30) = - i_29 i_27
+    let (i_31) = + i_30 i_26
+    i_31
   
-  let (157) = v(4) l(10) v(156)
+  let (lug_14)  (i_25) (i_24) (i_23) =
+    let (uc_9) = i_23
+    let (ub_8) = i_24
+    let (ua_7) = i_25
+    let (i_22) = clsr[luh_13][ua_7, ub_8, uc_9]
+    let (uh_13) = i_22
+    uh_13
   
-  let (6) = v(157)
+  let (luf_6)  (i_21) =
+    let (ux_5) = i_21
+    let (i_19) = * 22 ux_5
+    let (i_20) = + 33 i_19
+    i_20
   
-  let (158) = v(3) v(6) l(4)
+  let (i_17) = * 11 32
   
-  let (159) = v(4) l(8) v(158)
+  let (i_18) = + 10 i_17
   
-  let (7) = v(159)
+  let (ua_0) = i_18
   
-  let (8) = v(7)
+  let (i_15) = * ua_0 4
   
-  let (9) = v(8)
+  let (i_16) = + 8 i_15
   
-  let (160) = v(3) v(8) l(2)
+  let (ub_1) = i_16
   
-  let (161) = v(3) v(160) v(7)
+  let (uc_2) = ub_1
   
-  let (162) = v(3) v(161) v(7)
+  let (ud_3) = uc_2
   
-  let (163) = v(4) l(3) v(162)
+  let (i_11) = * uc_2 2
   
-  let (10) = v(163)
+  let (i_12) = * i_11 ub_1
   
-  let (12)  (166) = 
-    let (11) = v(166)
-    let (164) = v(3) l(22) v(11)
-    let (165) = v(4) l(33) v(164)
-    v(165)
+  let (i_13) = * i_12 ub_1
   
-  let (19) [13] [14] [15] (173) (174) (175) = 
-    let (16) = v(173)
-    let (17) = v(174)
-    let (18) = v(175)
-    let (167) = v(3) v(14) v(15)
-    let (168) = v(4) v(13) v(167)
-    let (169) = v(3) v(16) v(17)
-    let (170) = v(2) v(168) v(169)
-    let (171) = v(3) l(2) v(18)
-    let (172) = v(4) v(170) v(171)
-    v(172)
+  let (i_14) = + 3 i_13
   
-  let (20)  (177) (178) (179) = 
-    let (13) = v(177)
-    let (14) = v(178)
-    let (15) = v(179)
-    let (176) = clsr[v(19)][v(13), v(14), v(15)]
-    let (19) = v(176)
-    v(19)
+  let (ue_4) = i_14
   
-  let (180) = v(4) v(8) v(9)
+  let (uf_6) = luf_6
   
-  let (181) = v(20) l(10) l(11) l(12) l(13) l(14) l(15)
+  let (ug_14) = lug_14
   
-  let (182) = v(4) v(180) v(181)
+  let (i_8) = ug_14 10 11 12 13 14 15
   
-  let (21) = v(182)
+  let (i_9) = + uc_2 ud_3
   
-  let (183) = v(20) l(55) l(66) l(77) l(88)
+  let (i_10) = + i_9 i_8
   
-  let (22) = v(183)
+  let (up_15) = i_10
   
-  let (184) = v(4) v(6) v(7)
+  let (i_7) = ug_14 55 66 77 88
   
-  let (185) = v(2) v(184) v(8)
+  let (us_16) = i_7
   
-  let (186) = v(12) l(19)
+  let (i_0) = uf_6 19
   
-  let (187) = v(22) v(10) v(186)
+  let (i_1) = us_16 ue_4 i_0
   
-  let (188) = v(3) v(9) v(187)
+  let (i_2) = * ud_3 i_1
   
-  let (189) = v(4) v(185) v(188)
+  let (i_3) = + ua_0 ub_1
   
-  let (190) = v(4) v(189) v(21)
+  let (i_4) = - i_3 uc_2
   
-  let (23) = v(190)
+  let (i_5) = + i_4 i_2
+  
+  let (i_6) = + i_5 up_15
+  
+  let (ures_17) = i_6
