@@ -44,4 +44,8 @@
   ./test_parser.exe
   ./test_db.exe
   ./test_closures.exe
-  ./test_anf.exe))
+  ./test_anf.exe
+  ./test_asm.exe
+  ../lib/bindings.co
+  ../lib/bindings.o
+  ../build.sh))
