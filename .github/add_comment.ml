@@ -60,10 +60,6 @@ let add_comment ~filename =
     |> Yojson.Safe.pretty_to_string
   in
   (match Curly.(run (Request.make ~body ~headers ~url ~meth:`POST ())) with
-    | Ok x when x.Curly.Response.code = 403  ->
-      Format.printf "status: %d\n" x.Curly.Response.code;
-      Format.printf "body: %s\n" x.Curly.Response.body;
-      exit 1
     | Ok x ->
       Format.printf "status: %d\n" x.Curly.Response.code;
       Format.printf "body: %s\n" x.Curly.Response.body;
