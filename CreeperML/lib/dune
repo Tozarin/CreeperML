@@ -6,6 +6,14 @@
  (infer false))
 
 (rule
+ (deps parser.mly)
+ (targets parse_errors.messages)
+ (action
+  (with-stdout-to
+   %{targets}
+   (run menhir --list-errors %{deps}))))
+
+(rule
  (deps parse_errors.messages parser.mly)
  (targets parser_messages.ml)
  (action
@@ -13,22 +21,10 @@
    %{targets}
    (run menhir --compile-errors %{deps}))))
 
-(rule
- (deps bindings.c)
- (targets bindings.co)
- (action
-  (run gcc -w -shared %{deps} -o %{targets})))
-
-(rule
- (deps bindings.c)
- (targets bindings.o)
- (action
-  (run gcc -w -c %{deps} -o %{targets} -w)))
-
 (library
  (name CreeperML)
  (public_name CreeperML)
- (libraries menhirLib llvm)
+ (libraries menhirLib)
  (flags :standard -color always -safe-string -warn-error -a+8 -w -50)
  (preprocess
   (pps ppx_expect ppx_deriving.show ppx_compare))

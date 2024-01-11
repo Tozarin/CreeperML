@@ -125,8 +125,7 @@ module TypeAst = struct
     | TyGround TUnit -> "()"
     | TyGround TFloat -> "float"
     | TyTuple xs ->
-        Format.sprintf "(%s)"
-        @@ List.fold_left (fun xs x -> xs ^ "," ^ show_ty x) "" xs
+        List.map show_ty xs |> String.concat ", " |> Format.sprintf "(%s)"
     | TyVar n -> Format.sprintf "'%s" n
 end
 

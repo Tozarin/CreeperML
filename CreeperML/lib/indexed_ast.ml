@@ -6,9 +6,14 @@ module IndexedTypeAst = struct
   open Type_ast.TypeAst
   open Parser_ast.ParserAst
   open Position.Position
-  open Counter
+  open State
 
-  type ilvalue = DLvAny | DLvUnit | DLvValue of int | DLvTuple of ilvalue list
+  type ilvalue =
+    | DLvAny
+    | DLvUnit
+    | DLvValue of string
+    | DLvTuple of ilvalue list
+
   type index_lvalue = (ilvalue, ty) typed
 
   type index_let_binding = {
@@ -22,7 +27,7 @@ module IndexedTypeAst = struct
   and d_expr =
     | DApply of index_expr * index_expr
     | DLiteral of literal
-    | DValue of int
+    | DValue of string
     | DFun of index_fun_body
     | DTuple of index_expr list
     | DIfElse of tif_else
@@ -33,22 +38,18 @@ module IndexedTypeAst = struct
 
   type index_program = index_let_binding list
 
-  (* END AST, BEGIN TRANSLATE*)
-
   module NameMap = Map.Make (String)
 
-  type nm = int NameMap.t
+  type nm = string NameMap.t
   type 'a res = 'a * nm
 
-  (* cons *)
   let typed typ value : ('a, 'b) typed = { typ; value }
 
   let rec names_of_lvalue (l : lvalue) =
     match l with
     | LvAny | LvUnit -> [ "any" ]
     | LvValue v -> [ v ]
-    | LvTuple vs ->
-        List.map (fun x -> value x |> names_of_lvalue) vs |> List.concat
+    | LvTuple vs -> List.concat_map (fun x -> value x |> names_of_lvalue) vs
 
   let rec index_lv (nm : nm) (l : lvalue) =
     match l with
@@ -58,76 +59,81 @@ module IndexedTypeAst = struct
     | LvTuple vs ->
         List.map (fun x -> value x |> index_lv nm) vs |> fun x -> DLvTuple x
 
-  let rec index_expr (nm : nm) (e : ty typ_expr) : index_expr =
+  let rec index_expr (nm : nm) (e : ty typ_expr) : index_expr t =
     match e.value with
     | TApply (l, r) ->
-        let lr = index_expr nm l in
-        let rr = index_expr nm r in
-        DApply (lr, rr) |> typed e.typ
+        let* lr = index_expr nm l in
+        let* rr = index_expr nm r in
+        DApply (lr, rr) |> typed e.typ |> return
     | TIfElse ite ->
-        let ir = index_expr nm ite.cond in
-        let tr = index_expr nm ite.t_body in
-        let er = index_expr nm ite.f_body in
+        let* ir = index_expr nm ite.cond in
+        let* tr = index_expr nm ite.t_body in
+        let* er = index_expr nm ite.f_body in
         let cond = ir in
         let t_body = tr in
         let f_body = er in
-        DIfElse { cond; t_body; f_body } |> typed e.typ
-    | TLiteral l -> DLiteral l |> typed e.typ
-    | TValue v -> NameMap.find v nm |> fun x -> DValue x |> typed e.typ
+        DIfElse { cond; t_body; f_body } |> typed e.typ |> return
+    | TLiteral l -> DLiteral l |> typed e.typ |> return
+    | TValue v -> (
+        match NameMap.find_opt v nm with
+        | Some x -> DValue x |> typed e.typ |> return
+        | None -> DValue v |> typed e.typ |> return)
     | TTuple vs ->
-        List.map (index_expr nm) vs |> fun x -> DTuple x |> typed e.typ
+        monadic_map vs (index_expr nm) >>| fun x -> DTuple x |> typed e.typ
     | TFun f ->
         let all_names = names_of_lvalue f.lvalue.value in
-        let nm =
-          List.fold_left
-            (fun nm n -> NameMap.add n (cnt_next ()) nm)
+        let* nm =
+          monadic_fold
+            (fun nm n ->
+              let* nxt = new_var n in
+              NameMap.add n ("u" ^ nxt) nm |> return)
             nm all_names
         in
-        let lets, nm_inners =
-          List.fold_left
+        let* lets, nm_inners =
+          monadic_fold
             (fun (xs, nm) x ->
-              let inner_r, nm = index_let x nm in
-              (inner_r :: xs, nm))
+              let* inner_r, nm = index_let x nm in
+              return (inner_r :: xs, nm))
             ([], nm) f.b.lets
-          |> fun (xs, nm) -> (List.rev xs, nm)
+          >>| fun (xs, nm) -> (List.rev xs, nm)
         in
-        let expr = index_expr nm_inners f.b.expr in
+        let* expr = index_expr nm_inners f.b.expr in
         let b = { lets; expr } in
         let lvalue = index_lv nm f.lvalue.value |> typed f.lvalue.typ in
         let f = { lvalue; b } in
-        DFun f |> typed e.typ
+        DFun f |> typed e.typ |> return
 
-  and index_let (l : ty typ_let_binding) nm : index_let_binding res =
+  and index_let (l : ty typ_let_binding) nm : index_let_binding res t =
     let all_names = names_of_lvalue l.l_v.value in
-    let nm =
+    let* nm =
       match l.rec_f with
       | Rec ->
-          List.fold_left
-            (fun nm n -> NameMap.add n (cnt_next ()) nm)
+          monadic_fold
+            (fun nm n -> new_var n >>| fun x -> NameMap.add n ("u" ^ x) nm)
             nm all_names
-      | NoRec -> nm
+      | NoRec -> return nm
     in
-    let lets, nm_inners =
-      List.fold_left
+    let* lets, nm_inners =
+      monadic_fold
         (fun (xs, nm) x ->
-          let inner_r, nm = index_let x nm in
-          (inner_r :: xs, nm))
+          let* inner_r, nm = index_let x nm in
+          return (inner_r :: xs, nm))
         ([], nm) l.body.lets
-      |> fun (xs, nm) -> (List.rev xs, nm)
+      >>| fun (xs, nm) -> (List.rev xs, nm)
     in
-    let expr = l.body.expr |> index_expr nm_inners in
+    let* expr = l.body.expr |> index_expr nm_inners in
     let body = { lets; expr } in
-    let nm =
+    let* nm =
       match l.rec_f with
-      | Rec -> nm
+      | Rec -> return nm
       | NoRec ->
-          List.fold_left
-            (fun nm n -> NameMap.add n (cnt_next ()) nm)
+          monadic_fold
+            (fun nm n -> new_var n >>| fun x -> NameMap.add n ("u" ^ x) nm)
             nm all_names
     in
     let l_v = index_lv nm l.l_v.value |> typed l.l_v.typ in
     let rec_f = l.rec_f in
-    ({ rec_f; body; l_v }, nm)
+    return ({ rec_f; body; l_v }, nm)
 
   (* Move declarations of let inside of fun *)
   let rec move_lets (l : ty typ_let_binding) : ty typ_let_binding =
@@ -140,12 +146,12 @@ module IndexedTypeAst = struct
         { l with body = { lets = []; expr } }
     | _ -> l
 
-  let index_of_typed (nm : nm) (p : ty typ_program) : index_program =
+  let index_of_typed (p : ty typ_program) : index_program =
     let p = List.map move_lets p in
-    List.fold_left
+    monadic_fold
       (fun (xs, nm) x ->
-        let res, nm = index_let x nm in
-        (res :: xs, nm))
-      ([], nm) p
-    |> fst |> List.rev
+        let* res, nm = index_let x nm in
+        return (res :: xs, nm))
+      ([], NameMap.empty) p
+    >>| fst >>| List.rev |> run
 end

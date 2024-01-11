@@ -1,7 +1,20 @@
 (library
  (name scaml_lib)
  (public_name SCAML.Lib)
- (modules Ast Parser Ty Inferencer)
+ (modules
+  Ast
+  Parser
+  Ty
+  Inferencer
+  Llast
+  RestrictedAst
+  Anf
+  AnfPrinter
+  Counter
+  Closure
+  AstPrinter
+  LlastPrinter
+  Lambda_lifting)
  (libraries base angstrom)
  (instrumentation
   (backend bisect_ppx))

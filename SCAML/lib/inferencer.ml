@@ -4,7 +4,7 @@
 
 (* http://dev.stephendiehl.com/fun/006_hindley_milner.html *)
 
-(* The code is a modified version of the inferencer taken from here 
+(* The code is a modified version of the inferencer taken from here
    https://gitlab.com/Kakadu/fp2020course-materials/-/blob/master/code/miniml*)
 
 open Base
@@ -12,18 +12,9 @@ open Ast
 open Ty
 module Format = Stdlib.Format (* silencing a warning *)
 
-let use_logging = false
-
-let log fmt =
-  if use_logging
-  then Format.kasprintf (fun s -> Format.printf "%s\n%!" s) fmt
-  else Format.ifprintf Format.std_formatter fmt
-;;
-
 module R : sig
   type 'a t
 
-  val bind : 'a t -> f:('a -> 'b t) -> 'b t
   val return : 'a -> 'a t
   val fail : error -> 'a t
 
@@ -110,14 +101,11 @@ end
 module Subst : sig
   type t
 
-  val pp : Stdlib.Format.formatter -> t -> unit
   val empty : t
   val singleton : fresh -> ty -> t R.t
 
   (** Getting value from substitution. May raise [Not_found] *)
-  val find_exn : fresh -> t -> ty
 
-  val find : fresh -> t -> ty option
   val apply : t -> ty -> ty
   val unify : ty -> ty -> t R.t
 
@@ -132,18 +120,6 @@ end = struct
 
   type t = (fresh, ty, Int.comparator_witness) Map.t
 
-  let pp ppf subst =
-    let list = Map.to_alist subst in
-    let open Format in
-    fprintf
-      ppf
-      "[ %a ]"
-      (pp_print_list
-         ~pp_sep:(fun ppf () -> fprintf ppf ", ")
-         (fun ppf (k, v) -> fprintf ppf "%d -> %a" k pp_typ v))
-      list
-  ;;
-
   let empty = Map.empty (module Int)
   let mapping k v = if Type.occurs_in k v then fail `Occurs_check else return (k, v)
 
@@ -152,7 +128,6 @@ end = struct
     return (Map.singleton (module Int) k v)
   ;;
 
-  let find_exn k xs = Base.Map.find_exn xs k
   let find k xs = Base.Map.find xs k
   let remove xs k = Base.Map.remove xs k
 
@@ -218,10 +193,6 @@ end
 module Scheme = struct
   type t = scheme
 
-  let occurs_in v = function
-    | S (xs, t) -> (not (VarSet.mem v xs)) && Type.occurs_in v t
-  ;;
-
   let free_vars = function
     | S (bs, t) -> VarSet.diff (Type.free_vars t) bs
   ;;
@@ -230,8 +201,6 @@ module Scheme = struct
     let s2 = VarSet.fold (fun k s -> Subst.remove s k) names sub in
     S (names, Subst.apply s2 ty)
   ;;
-
-  let pp = pp_scheme
 end
 
 module TypeEnv = struct
@@ -246,14 +215,6 @@ module TypeEnv = struct
   ;;
 
   let apply s env = Map.map env ~f:(Scheme.apply s)
-
-  let pp ppf xs =
-    Stdlib.Format.fprintf ppf "{| ";
-    Map.iter xs ~f:(fun (n, s) -> Stdlib.Format.fprintf ppf "%s -> %a; " n pp_scheme s);
-    Stdlib.Format.fprintf ppf "|}%!"
-  ;;
-
-  let find_exn name xs = Map.find_exn ~equal:String.equal xs name
 end
 
 open R

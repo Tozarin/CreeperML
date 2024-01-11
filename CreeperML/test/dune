@@ -38,32 +38,12 @@
  (instrumentation
   (backend bisect_ppx)))
 
-(executable
- (name test_anf_opt)
- (modules test_anf_opt)
- (public_name test_anf_opt)
- (libraries CreeperML stdio)
- (instrumentation
-  (backend bisect_ppx)))
-
-(executable
- (name test_asm)
- (modules test_asm)
- (public_name test_asm)
- (libraries CreeperML stdio)
- (instrumentation
-  (backend bisect_ppx))
- (link_deps
-  (file ../lib/bindings.o)
-  (file ../build.sh)))
-
 (cram
  (deps
   ./test_infer.exe
   ./test_parser.exe
   ./test_db.exe
   ./test_closures.exe
-  ./test_anf_opt.exe
   ./test_anf.exe
   ./test_asm.exe
   ../lib/bindings.co

@@ -1,7 +1,7 @@
 (library
  (name KREML_lib)
  (public_name KREML.Lib)
- (modules Ast Parser Inferencer Typing)
+ (modules Ast Parser Inferencer Typing Cc_ast Ll_ast Anf Clos_conv Counter Lambda_lifting Anf_conv Anf_pretty_printer)
  (libraries base angstrom)
  (instrumentation
   (backend bisect_ppx))

@@ -3,39 +3,6 @@
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
 module Std = struct
-  module Names = struct
-    open Counter
-    module NameMap = Map.Make (String)
-
-    let add name = NameMap.add name (cnt_next ())
-    let ( ||> ) m name = m |> add name
-
-    let names =
-      List.fold_left ( ||> ) NameMap.empty
-        [
-          "-";
-          "+";
-          "*";
-          "/";
-          "<=";
-          "<";
-          "==";
-          ">";
-          ">=";
-          "-.";
-          "+.";
-          "*.";
-          "/.";
-          "<=.";
-          "<.";
-          "==.";
-          ">.";
-          ">=.";
-          "print_int";
-          "print_string";
-        ]
-  end
-
   module Inferencer = struct
     open Type_ast.InferTypeUtils
 
@@ -120,34 +87,34 @@ module Std = struct
     let triple fst snd rez = TyArrow (TyArrow (fst, snd), rez)
 
     (* int operations *)
-    let sub = typed (triple int_const int_const int_const) 1
-    let add = typed (triple int_const int_const int_const) 2
-    let mul = typed (triple int_const int_const int_const) 3
-    let div = typed (triple int_const int_const int_const) 4
+    let sub = typed (triple int_const int_const int_const) "-"
+    let add = typed (triple int_const int_const int_const) "+"
+    let mul = typed (triple int_const int_const int_const) "*"
+    let div = typed (triple int_const int_const int_const) "/"
 
     (* int bool *)
-    let le = typed (triple int_const int_const bool_const) 5
-    let less = typed (triple int_const int_const bool_const) 6
-    let eq = typed (triple int_const int_const bool_const) 7
-    let gr = typed (triple int_const int_const bool_const) 8
-    let ge = typed (triple int_const int_const bool_const) 9
+    let le = typed (triple int_const int_const bool_const) "<="
+    let less = typed (triple int_const int_const bool_const) "<"
+    let eq = typed (triple int_const int_const bool_const) "="
+    let gr = typed (triple int_const int_const bool_const) ">"
+    let ge = typed (triple int_const int_const bool_const) ">="
 
     (* float operations *)
-    let fsub = typed (triple float_const float_const float_const) 10
-    let fadd = typed (triple float_const float_const float_const) 11
-    let fmul = typed (triple float_const float_const float_const) 12
-    let fdiv = typed (triple float_const float_const float_const) 13
+    let fsub = typed (triple float_const float_const float_const) "-."
+    let fadd = typed (triple float_const float_const float_const) "+."
+    let fmul = typed (triple float_const float_const float_const) "*."
+    let fdiv = typed (triple float_const float_const float_const) "/."
 
     (* float bool*)
-    let fle = typed (triple float_const float_const bool_const) 14
-    let fless = typed (triple float_const float_const bool_const) 15
-    let feq = typed (triple float_const float_const bool_const) 16
-    let fgr = typed (triple float_const float_const bool_const) 17
-    let fge = typed (triple float_const float_const bool_const) 18
+    let fle = typed (triple float_const float_const bool_const) "<=."
+    let fless = typed (triple float_const float_const bool_const) "<."
+    let feq = typed (triple float_const float_const bool_const) "=."
+    let fgr = typed (triple float_const float_const bool_const) ">."
+    let fge = typed (triple float_const float_const bool_const) ">=."
 
     (* prints *)
-    let print_int = typed (arr int_const unit_const) 19
-    let print_string = typed (arr string_const unit_const) 20
+    let print_int = typed (arr int_const unit_const) "print_int"
+    let print_string = typed (arr string_const unit_const) "print_string"
 
     let operators =
       [
@@ -175,6 +142,5 @@ module Std = struct
   end
 
   let typeenv = Inferencer.env
-  let names = Names.names
   let operators = Operators.operators
 end
