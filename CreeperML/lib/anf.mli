@@ -9,7 +9,7 @@ module AnfTypeAst : sig
 
   type tlvalue = index_lvalue
   type tliteral = (literal, ty) typed
-  type tname = (int, ty) typed
+  type tname = (string, ty) typed
 
   type imm =
     | ImmVal of tname
@@ -22,30 +22,6 @@ module AnfTypeAst : sig
     | ATuple of imm list  (** Creation of tuple with N imm elements*)
     | Aite of imm * anf_body * anf_body
         (** If then else, where if part is pre-calculated, and then and else are contained like blocks for lazy evaluation*)
-    (* Why is lazyness important?
-       Imagine if a > 4 then print 3 else print 2
-       if it was not lazy:
-         let cond = > a 4
-         let then_t = print 3
-         let else_t = print 2
-         let final = if cond then then_t else else_t
-         final
-
-       if it contains side effect or non-evaluating things (like inf. recursion), it breaks
-       here it executes print 2 and print 3 although it shouldn't
-
-       when it is lazy (in canonical formcondition is eager)
-         let cond = > a 4
-         let res = if cond then
-           let then_t = print 3
-           then_t
-         else
-           let else_t = print 2
-           else_t
-         res
-
-        now its kinda fine
-    *)
     | AImm of imm  (** Immidiate value (var or literal)*)
     | ATupleAccess of imm * int
         (** Accessing tuple, tuple is imm, index is int *)

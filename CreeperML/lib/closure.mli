@@ -10,10 +10,10 @@ module ClosureAst : sig
   type cf_expr =
     | CFApply of cf_typ_expr * cf_typ_expr list
     | CFLiteral of literal
-    | CFValue of int
+    | CFValue of string
     | CFTuple of cf_typ_expr list
     | CFIfElse of cf_if_else
-    | CFClosure of int * (int, ty) typed list
+    | CFClosure of string * (string, ty) typed list
 
   and cf_if_else = {
     cond : cf_typ_expr;
@@ -36,10 +36,10 @@ module ClosureAst : sig
 
   type cf_fun_let_binding = {
     is_rec : rec_flag;
-    name : (int, ty) typed;
+    name : (string, ty) typed;
     args : index_lvalue list;
     b : cf_typ_let_body;
-    env_vars : (int, ty) typed list;
+    env_vars : (string, ty) typed list;
   }
 
   type cf_binding =
@@ -51,8 +51,7 @@ end
 
 module ClosureConvert : sig
   open ClosureAst
-  open Type_ast.TypeAst
   open Indexed_ast.IndexedTypeAst
 
-  val cf_of_index : (int, ty) typed list -> index_program -> cf_typ_program
+  val cf_of_index : index_program -> cf_typ_program
 end
