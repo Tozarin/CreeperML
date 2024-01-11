@@ -28,7 +28,6 @@ module Codegen = struct
 
   module FuncrionTypes = Map.Make (String)
 
-  let function_types : (string, ty) Hashtbl.t = Hashtbl.create 42
   let float_type = float_type contex
   let bool_type = i32_type contex
   let integer_type = i32_type contex
@@ -37,7 +36,6 @@ module Codegen = struct
   let ptr = pointer_type contex
   let int_const = const_int integer_type
   let str_name n = typed_value n |> string_of_int
-  let last_orig_v = ref (const_null integer_type, false)
   let load_int v = build_load integer_type v "loadint" builder
   let load_float v = build_load float_type v "loadfloat" builder
 
@@ -71,6 +69,11 @@ module Codegen = struct
     let addr = build_alloca (type_of v) "polytmp" builder in
     ignore (build_store v addr builder);
     addr
+
+  let match_ptr f_matched f_else v =
+    match type_of v |> classify_type with
+    | TypeKind.Pointer -> f_matched v
+    | _ -> f_else v
 
   let tmp_v v t =
     let new_addr = build_alloca t "tm1000pnewaddr" builder in
@@ -118,6 +121,8 @@ module Codegen = struct
         function_type (get_type r) (List.map get_type args |> Array.of_list)
     | TyVar _ -> ptr
 
+  let rec rez_t = function TyArrow (_, rez) -> rez_t rez | t -> t
+
   let codegen_imm named_values function_types = function
     | ImmLit t ->
         (match typed_value t with
@@ -142,8 +147,6 @@ module Codegen = struct
         | _ ->
             Printf.sprintf "Can't find function/value at number %s" name
             |> error)
-
-  let rec rez_t = function TyArrow (_, rez) -> rez_t rez | t -> t
 
   let codegen_sig named_values function_types { value = name; typ = t } args =
     let name = Printf.sprintf "f%d" name in
@@ -221,6 +224,37 @@ module Codegen = struct
         build_call ft f [| argv.(0) |] "" builder |> return
     | name -> Printf.sprintf "fail predef ar %s" name |> error
 
+  let codegen_predef_function named_values function_types op =
+    let number = str_name op |> int_of_string in
+    let args =
+      let rec helper = function
+        | TyArrow (l, r) ->
+            let tl, n = helper l in
+            (with_typ r (n + (-1 * number * max_fun)) :: tl, n - 1)
+        | _ -> ([], -1)
+      in
+      typ op |> helper |> fst |> List.rev
+    in
+    let* { named_values; value = f }, function_types =
+      codegen_sig named_values function_types op args
+    in
+    let bb = append_block contex "entry" f in
+    position_at_end bb builder;
+    let* argv =
+      monadic_map args (fun a ->
+          try_find named_values (str_name a) "" >>| value)
+      >>| Array.of_list
+    in
+    let* ret_val = codegen_predef (str_name op |> String.cat "f") argv in
+    let ret_val =
+      match (typ op |> rez_t, type_of ret_val |> classify_type) with
+      | TyGround TUnit, _ -> const_pointer_null ptr
+      | _, TypeKind.Pointer -> ret_val
+      | _ -> put_to_ptr ret_val
+    in
+    ignore (build_ret ret_val builder);
+    return (named_values, function_types)
+
   type tmp = TMP | NOTMP
 
   let rec codegen_expr named_values function_types =
@@ -229,10 +263,8 @@ module Codegen = struct
       let argc = List.length args in
       let* argv =
         monadic_map args (fun a ->
-            codegen_imm named_values function_types a >>| fun a ->
-            match type_of a |> classify_type with
-            | TypeKind.Pointer -> a
-            | _ -> put_to_ptr a)
+            codegen_imm named_values function_types a
+            >>| match_ptr (fun a -> a) put_to_ptr)
         >>| Array.of_list
       in
       let argv_adr = build_malloc (array_type ptr argc) "arraymalloc" builder in
@@ -246,14 +278,12 @@ module Codegen = struct
       in
       Array.iteri alloc argv;
       let rz = apply_closure cl argv_adr argc in
-      ignore (last_orig_v := (rz, true));
       (match (typ f |> rez_t, tmp) with
       | TyGround TUnit, _ -> rz
       | t, TMP -> get_type t |> tmp_v rz
       | _ -> rz)
       |> ret named_values
     in
-
     function
     | AImm imm ->
         codegen_imm named_values function_types imm >>= ret named_values
@@ -296,10 +326,8 @@ module Codegen = struct
         ignore (build_br test_block builder);
         position_at_end test_block builder;
         let* cond =
-          codegen_imm named_values function_types cond >>| fun c ->
-          match type_of c |> classify_type with
-          | TypeKind.Pointer -> load_int c
-          | _ -> c
+          codegen_imm named_values function_types cond
+          >>| match_ptr load_int (fun c -> c)
         in
         let cond_val = build_icmp Icmp.Eq cond (int_const 0) "cond" builder in
         ignore (build_cond_br cond_val else_block then_block builder);
@@ -329,7 +357,6 @@ module Codegen = struct
 
         position_at_end merge_block builder;
         let rz = build_load (type_of else_val) addr "ifrez" builder in
-        ignore (last_orig_v := (rz, true));
         ret named_values rz
     | ATupleAccess (ImmVal name, ix) ->
         let n = str_name name in
@@ -348,14 +375,13 @@ module Codegen = struct
     let* { value = body; named_values } =
       codegen_expr named_values function_types e
     in
-    let t = type_of body in
     let r =
-      match t |> classify_type with
-      | TypeKind.Pointer -> body
-      | _ ->
-          let addr = build_alloca t (String.cat name "a") builder in
-          ignore (build_store body addr builder);
-          build_load t addr (String.cat name "l") builder
+      match_ptr
+        (fun body -> body)
+        (fun body ->
+          let addr = put_to_ptr body in
+          build_load (type_of body) addr "polyload" builder)
+        body
     in
     let named_values = NamedValues.add name (Val r) named_values in
     ret named_values r
@@ -377,7 +403,7 @@ module Codegen = struct
               |> return
         in
         return (named_values, function_types)
-    | AnfFun { name; args; env; body = { lets; res = body } } -> (
+    | AnfFun { name; args; env; body = { lets; res = body } } ->
         let* { named_values; value = f }, function_types =
           env @ args |> codegen_sig named_values function_types name
         in
@@ -392,52 +418,15 @@ module Codegen = struct
               return named_values)
             named_values lets
         in
-        try
-          let* v = codegen_imm named_values function_types body in
-          let ret_val = if snd !last_orig_v then fst !last_orig_v else v in
-          ignore (last_orig_v := (const_null integer_type, false));
-          let ret_val =
-            match (typ name |> rez_t, type_of ret_val |> classify_type) with
-            | TyGround TUnit, _ -> const_pointer_null ptr
-            | _, TypeKind.Pointer -> ret_val
-            | _ -> put_to_ptr ret_val
-          in
-          ignore (build_ret ret_val builder);
-          return (named_values, function_types)
-        with _ ->
-          delete_function f;
-          error "Funciton binding error")
-
-  let codegen_predef_function named_values function_types op =
-    let number = str_name op |> int_of_string in
-    let args =
-      let rec helper = function
-        | TyArrow (l, r) ->
-            let tl, n = helper l in
-            (with_typ r (n + (-1 * number * max_fun)) :: tl, n - 1)
-        | _ -> ([], -1)
-      in
-      typ op |> helper |> fst |> List.rev
-    in
-    let* { named_values; value = f }, function_types =
-      codegen_sig named_values function_types op args
-    in
-    let bb = append_block contex "entry" f in
-    position_at_end bb builder;
-    let* argv =
-      monadic_map args (fun a ->
-          try_find named_values (str_name a) "" >>| value)
-      >>| Array.of_list
-    in
-    let* ret_val = codegen_predef (str_name op |> String.cat "f") argv in
-    let ret_val =
-      match (typ op |> rez_t, type_of ret_val |> classify_type) with
-      | TyGround TUnit, _ -> const_pointer_null ptr
-      | _, TypeKind.Pointer -> ret_val
-      | _ -> put_to_ptr ret_val
-    in
-    ignore (build_ret ret_val builder);
-    return (named_values, function_types)
+        let* ret_val = codegen_imm named_values function_types body in
+        let ret_val =
+          match (typ name |> rez_t, type_of ret_val |> classify_type) with
+          | TyGround TUnit, _ -> const_pointer_null ptr
+          | _, TypeKind.Pointer -> ret_val
+          | _ -> put_to_ptr ret_val
+        in
+        ignore (build_ret ret_val builder);
+        return (named_values, function_types)
 
   let codegen_ret_main b =
     position_at_end b builder;
@@ -449,12 +438,6 @@ module Codegen = struct
 
   let top_lvl code =
     let b = codegen_main in
-    let _ =
-      List.iter
-        (fun { value; typ } ->
-          Hashtbl.add function_types (Printf.sprintf "f%d" value) typ)
-        Std.Std.operators
-    in
     let* env =
       monadic_fold
         (fun (named_values, function_types) op ->
