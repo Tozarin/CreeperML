@@ -11,7 +11,6 @@ open Monad.Result
 
 module Codegen = struct
   let contex = global_context ()
-  let max_fun = 64
   let the_module = create_module contex "CreeperMLBestLenguage"
   let builder = builder contex
 
@@ -135,16 +134,16 @@ module Codegen = struct
             build_global_stringptr str "" builder)
         |> return
     | ImmVal t -> (
-        let f_name = str_name t in
+        let name = str_name t in
         match
-          (lookup_function f_name the_module, try_find_opt named_values f_name)
+          (lookup_function name the_module, try_find_opt named_values name)
         with
         | _, Some f -> return f.value
         | Some f, _ ->
-            FuncrionTypes.find f_name function_types
+            FuncrionTypes.find name function_types
             |> arity |> alloc_closure f [||] |> return
         | _ ->
-            Printf.sprintf "Can't find function/value at number %s" f_name
+            Printf.sprintf "Can't find function/value at number %s" name
             |> error)
 
   let codegen_sig named_values function_types { value = name; typ = t } args =
@@ -192,30 +191,30 @@ module Codegen = struct
       build_zext i integer_type "booltmp" builder |> return
     in
     match name with
-    | "f1" (* - *) -> op build_sub argv load_int
-    | "f2" (* + *) -> op build_add argv load_int
-    | "f3" (* * *) -> op build_mul argv load_int
-    | "f4" (* / *) -> op build_sdiv argv load_int
-    | "f5" (* <= *) -> bin_op (build_icmp Icmp.Sle) argv load_int
-    | "f6" (* < *) -> bin_op (build_icmp Icmp.Slt) argv load_int
-    | "f7" (* == *) -> bin_op (build_icmp Icmp.Eq) argv load_int
-    | "f8" (* > *) -> bin_op (build_icmp Icmp.Sgt) argv load_int
-    | "f9" (* >= *) -> bin_op (build_icmp Icmp.Sge) argv load_int
-    | "f10" (* -. *) -> op build_fsub argv load_float
-    | "f11" (* +. *) -> op build_fadd argv load_float
-    | "f12" (* *. *) -> op build_fmul argv load_float
-    | "f13" (* /. *) -> op build_fdiv argv load_float
-    | "f14" (* <=. *) -> bin_op (build_fcmp Fcmp.Ole) argv load_float
-    | "f15" (* <. *) -> bin_op (build_fcmp Fcmp.Olt) argv load_float
-    | "f16" (* ==. *) -> bin_op (build_fcmp Fcmp.Oeq) argv load_float
-    | "f17" (* >. *) -> bin_op (build_fcmp Fcmp.Olt) argv load_float
-    | "f18" (* >=. *) -> bin_op (build_fcmp Fcmp.Olt) argv load_float
-    | "f19" ->
+    | "-" (* - *) -> op build_sub argv load_int
+    | "+" (* + *) -> op build_add argv load_int
+    | "*" (* * *) -> op build_mul argv load_int
+    | "/" (* / *) -> op build_sdiv argv load_int
+    | "<=" (* <= *) -> bin_op (build_icmp Icmp.Sle) argv load_int
+    | "<" (* < *) -> bin_op (build_icmp Icmp.Slt) argv load_int
+    | "=" (* = *) -> bin_op (build_icmp Icmp.Eq) argv load_int
+    | ">" (* > *) -> bin_op (build_icmp Icmp.Sgt) argv load_int
+    | ">=" (* >= *) -> bin_op (build_icmp Icmp.Sge) argv load_int
+    | "-." (* -. *) -> op build_fsub argv load_float
+    | "+." (* +. *) -> op build_fadd argv load_float
+    | "*." (* *. *) -> op build_fmul argv load_float
+    | "/." (* /. *) -> op build_fdiv argv load_float
+    | "<=." (* <=. *) -> bin_op (build_fcmp Fcmp.Ole) argv load_float
+    | "<." (* <. *) -> bin_op (build_fcmp Fcmp.Olt) argv load_float
+    | "=." (* =. *) -> bin_op (build_fcmp Fcmp.Oeq) argv load_float
+    | ">." (* >. *) -> bin_op (build_fcmp Fcmp.Olt) argv load_float
+    | ">=." (* >=. *) -> bin_op (build_fcmp Fcmp.Olt) argv load_float
+    | "print_int" ->
         let ft = function_type unit_type [| integer_type |] in
-        let f = declare_function "print_int" ft the_module in
+        let f = declare_function "bin_print_int" ft the_module in
         let arg = load_int argv.(0) in
         build_call ft f [| arg |] "" builder |> return
-    | "f20" ->
+    | "print_string" ->
         let ft = function_type unit_type [| ptr |] in
         let f = declare_function "print_string_raw" ft the_module in
         build_call ft f [| argv.(0) |] "" builder |> return
@@ -227,9 +226,9 @@ module Codegen = struct
       let rec helper = function
         | TyArrow (l, r) ->
             let tl, n = helper l in
-            let name = Printf.sprintf {|%s____%d|} name n in
-            (with_typ r name :: tl, n - 1)
-        | _ -> ([], -1)
+            let name = Printf.sprintf "%s_%d" name n in
+            (with_typ r name :: tl, n + 1)
+        | _ -> ([], 1)
       in
       typ op |> helper |> fst |> List.rev
     in
@@ -387,8 +386,10 @@ module Codegen = struct
   let codegen_anf_binding named_values function_types main = function
     | AnfVal ({ name; e } as bind) ->
         let* named_values =
-          match typ name with
-          | TyGround TUnit ->
+          match (typ name, e) with
+          | TyGround TUnit, AImm (ImmVal { value = _; typ = TyGround TUnit }) ->
+              return named_values
+          | TyGround TUnit, _ ->
               position_at_end main builder;
               let* { named_values; value = _ } =
                 codegen_expr named_values function_types e
