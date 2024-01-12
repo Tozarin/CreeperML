@@ -23,7 +23,9 @@ module Compiler = struct
 
   let dmp_code file =
     cmp (fun x ->
-        Codegen.Codegen.top_lvl x |> fun _ -> Codegen.Codegen.dmp_code file)
+        Codegen.Codegen.top_lvl x |> function
+        | Ok _ -> Codegen.Codegen.dmp_code file
+        | Error msg -> print_endline msg)
 
   let compile file = cmp (fun x -> apply_llvm x file)
 end
