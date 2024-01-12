@@ -129,3 +129,23 @@
   $ gcc test-opt.s ../lib/bindings.co -o test-opt
   $ ./test-opt
   5
+
+  $ cat > input.ml <<- EOF
+  > let rec fix f x = f (fix f) x
+  > let fib n =
+  >   let helper self n a b =
+  >     if n == 0 then
+  >       a
+  >     else 
+  >       self (n - 1) b (a + b)
+  >   in 
+  >   fix helper n 0 1
+  > let () = print_int (fib 5)
+  > EOF
+  $ ocaml input.ml
+  5
+  $ cat input.ml | ./test_llvm.exe
+  $ llc-16 --relocation-model=pic test-opt.ll
+  $ gcc test-opt.s ../lib/bindings.co -o test-opt
+  $ ./test-opt
+  
