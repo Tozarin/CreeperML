@@ -35,7 +35,7 @@ module Codegen = struct
   let unit_type = void_type contex
   let ptr = pointer_type contex
   let int_const = const_int integer_type
-  let str_name n = typed_value n |> string_of_int
+  let str_name n = typed_value n
   let load_int v = build_load integer_type v "loadint" builder
   let load_float v = build_load float_type v "loadfloat" builder
 
@@ -135,21 +135,19 @@ module Codegen = struct
             build_global_stringptr str "" builder)
         |> return
     | ImmVal t -> (
-        let name = str_name t in
-        let f_name = String.cat "f" name in
+        let f_name = str_name t in
         match
-          (lookup_function f_name the_module, try_find_opt named_values name)
+          (lookup_function f_name the_module, try_find_opt named_values f_name)
         with
         | _, Some f -> return f.value
         | Some f, _ ->
             FuncrionTypes.find f_name function_types
             |> arity |> alloc_closure f [||] |> return
         | _ ->
-            Printf.sprintf "Can't find function/value at number %s" name
+            Printf.sprintf "Can't find function/value at number %s" f_name
             |> error)
 
   let codegen_sig named_values function_types { value = name; typ = t } args =
-    let name = Printf.sprintf "f%d" name in
     let args_ts = List.map typ args in
     let args_names = List.map str_name args in
     let ft = Array.make (List.length args) ptr |> function_type ptr in
@@ -165,8 +163,7 @@ module Codegen = struct
     let function_types =
       List.fold_left2
         (fun function_types name -> function
-          | TyArrow _ as t ->
-              FuncrionTypes.add (String.cat "f" name) t function_types
+          | TyArrow _ as t -> FuncrionTypes.add name t function_types
           | _ -> function_types)
         (FuncrionTypes.add name orig_ft function_types)
         args_names args_ts
@@ -225,12 +222,13 @@ module Codegen = struct
     | name -> Printf.sprintf "fail predef ar %s" name |> error
 
   let codegen_predef_function named_values function_types op =
-    let number = str_name op |> int_of_string in
+    let name = str_name op in
     let args =
       let rec helper = function
         | TyArrow (l, r) ->
             let tl, n = helper l in
-            (with_typ r (n + (-1 * number * max_fun)) :: tl, n - 1)
+            let name = Printf.sprintf {|%s____%d|} name n in
+            (with_typ r name :: tl, n - 1)
         | _ -> ([], -1)
       in
       typ op |> helper |> fst |> List.rev
@@ -245,7 +243,7 @@ module Codegen = struct
           try_find named_values (str_name a) "" >>| value)
       >>| Array.of_list
     in
-    let* ret_val = codegen_predef (str_name op |> String.cat "f") argv in
+    let* ret_val = codegen_predef name argv in
     let ret_val =
       match (typ op |> rez_t, type_of ret_val |> classify_type) with
       | TyGround TUnit, _ -> const_pointer_null ptr
