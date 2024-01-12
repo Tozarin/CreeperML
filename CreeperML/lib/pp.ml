@@ -65,8 +65,8 @@ module PrettyPrinter = struct
         let lval = x.name.value in
         let lets =
           List.map
-            (print_cf_dec st (intd ^ "  "))
-            (List.map (fun x -> ValBinding x) x.b.cf_lets)
+            (fun y -> ValBinding y |> print_cf_dec st (intd ^ "  "))
+            x.b.cf_lets
           |> String.concat "\n"
         in
         let args =

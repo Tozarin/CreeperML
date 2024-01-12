@@ -52,7 +52,8 @@ module Codegen = struct
           [| int_const 0; int_const i |]
           "elem" builder
       in
-      ignore (build_store e addr builder)
+      let (_ : Llvm.llvalue) = build_store e addr builder in
+      ()
     in
     Array.iteri alloc argv;
     let arity = int_const arity in
@@ -66,7 +67,7 @@ module Codegen = struct
 
   let put_to_ptr v =
     let addr = build_alloca (type_of v) "polytmp" builder in
-    ignore (build_store v addr builder);
+    let (_ : Llvm.llvalue) = build_store v addr builder in
     addr
 
   let match_ptr f_matched f_else v =
@@ -77,7 +78,7 @@ module Codegen = struct
   let tmp_v v t =
     let new_addr = build_alloca t "tm1000pnewaddr" builder in
     let data = build_load t v "tm1000ptmp" builder in
-    ignore (build_store data new_addr builder);
+    let (_ : Llvm.llvalue) = build_store data new_addr builder in
     new_addr
 
   let apply_closure cl argv argc =
@@ -249,7 +250,7 @@ module Codegen = struct
       | _, TypeKind.Pointer -> ret_val
       | _ -> put_to_ptr ret_val
     in
-    ignore (build_ret ret_val builder);
+    let (_ : Llvm.llvalue) = build_ret ret_val builder in
     return (named_values, function_types)
 
   type tmp = TMP | NOTMP
@@ -271,7 +272,8 @@ module Codegen = struct
             [| int_const 0; int_const i |]
             "elem" builder
         in
-        ignore (build_store e addr builder)
+        let (_ : Llvm.llvalue) = build_store e addr builder in
+        ()
       in
       Array.iteri alloc argv;
       let rz = apply_closure cl argv_adr argc in
@@ -295,7 +297,8 @@ module Codegen = struct
           let addr =
             build_gep t addr [| int_const 0; int_const i |] "elem" builder
           in
-          ignore (build_store e addr builder)
+          let (_ : Llvm.llvalue) = build_store e addr builder in
+          ()
         in
         Array.iteri alloc es;
         ret named_values addr
@@ -320,14 +323,16 @@ module Codegen = struct
         let else_block = append_block contex "else" fun_block in
         let merge_block = append_block contex "merge" fun_block in
 
-        ignore (build_br test_block builder);
+        let (_ : Llvm.llvalue) = build_br test_block builder in
         position_at_end test_block builder;
         let* cond =
           codegen_imm named_values function_types cond
           >>| match_ptr load_int (fun c -> c)
         in
         let cond_val = build_icmp Icmp.Eq cond (int_const 0) "cond" builder in
-        ignore (build_cond_br cond_val else_block then_block builder);
+        let (_ : Llvm.llvalue) =
+          build_cond_br cond_val else_block then_block builder
+        in
 
         position_at_end then_block builder;
         let* named_values = named_vs then_lets in
@@ -345,12 +350,11 @@ module Codegen = struct
           |> build_alloca (type_of else_val) "ifrezptr"
         in
         position_at_end new_then_block builder;
-        ignore (build_store then_val addr builder);
-        ignore (build_br merge_block builder);
-
+        let (_ : Llvm.llvalue) = build_store then_val addr builder in
+        let (_ : Llvm.llvalue) = build_br merge_block builder in
         position_at_end new_else_block builder;
-        ignore (build_store else_val addr builder);
-        ignore (build_br merge_block builder);
+        let (_ : Llvm.llvalue) = build_store else_val addr builder in
+        let (_ : Llvm.llvalue) = build_br merge_block builder in
 
         position_at_end merge_block builder;
         let rz = build_load (type_of else_val) addr "ifrez" builder in
@@ -424,7 +428,7 @@ module Codegen = struct
           | _, TypeKind.Pointer -> ret_val
           | _ -> put_to_ptr ret_val
         in
-        ignore (build_ret ret_val builder);
+        let (_ : Llvm.llvalue) = build_ret ret_val builder in
         return (named_values, function_types)
 
   let codegen_ret_main b =
@@ -456,14 +460,14 @@ module Codegen = struct
   let dmp_code file = print_module file the_module
 
   let compile code name =
-    let output_ll = Printf.sprintf "%s.ll" name in
+    let output_ll = Printf.sprintf "%s-opt.ll" name in
     let output_opt_ll = Printf.sprintf "%s-opt.ll" name in
     let output_opt_s = Printf.sprintf "%s-opt.s" name in
-    ignore
-      (match top_lvl code with
+    let (_ : unit) =
+      match top_lvl code with
       | Error err -> print_endline err
-      | _ -> dmp_code output_ll);
-    let _ = Printf.sprintf "cp %s %s" output_ll output_opt_ll |> Sys.command in
+      | _ -> dmp_code output_ll
+    in
     let _ =
       Printf.sprintf "llc --relocation-model=pic %s" output_opt_ll
       |> Sys.command
