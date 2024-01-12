@@ -191,24 +191,24 @@ module Codegen = struct
       build_zext i integer_type "booltmp" builder |> return
     in
     match name with
-    | "-" (* - *) -> op build_sub argv load_int
-    | "+" (* + *) -> op build_add argv load_int
-    | "*" (* * *) -> op build_mul argv load_int
-    | "/" (* / *) -> op build_sdiv argv load_int
-    | "<=" (* <= *) -> bin_op (build_icmp Icmp.Sle) argv load_int
-    | "<" (* < *) -> bin_op (build_icmp Icmp.Slt) argv load_int
-    | "=" (* = *) -> bin_op (build_icmp Icmp.Eq) argv load_int
-    | ">" (* > *) -> bin_op (build_icmp Icmp.Sgt) argv load_int
-    | ">=" (* >= *) -> bin_op (build_icmp Icmp.Sge) argv load_int
-    | "-." (* -. *) -> op build_fsub argv load_float
-    | "+." (* +. *) -> op build_fadd argv load_float
-    | "*." (* *. *) -> op build_fmul argv load_float
-    | "/." (* /. *) -> op build_fdiv argv load_float
-    | "<=." (* <=. *) -> bin_op (build_fcmp Fcmp.Ole) argv load_float
-    | "<." (* <. *) -> bin_op (build_fcmp Fcmp.Olt) argv load_float
-    | "=." (* =. *) -> bin_op (build_fcmp Fcmp.Oeq) argv load_float
-    | ">." (* >. *) -> bin_op (build_fcmp Fcmp.Olt) argv load_float
-    | ">=." (* >=. *) -> bin_op (build_fcmp Fcmp.Olt) argv load_float
+    | "-" -> op build_sub argv load_int
+    | "+" -> op build_add argv load_int
+    | "*" -> op build_mul argv load_int
+    | "/" -> op build_sdiv argv load_int
+    | "<=" -> bin_op (build_icmp Icmp.Sle) argv load_int
+    | "<" -> bin_op (build_icmp Icmp.Slt) argv load_int
+    | "==" -> bin_op (build_icmp Icmp.Eq) argv load_int
+    | ">" -> bin_op (build_icmp Icmp.Sgt) argv load_int
+    | ">=" -> bin_op (build_icmp Icmp.Sge) argv load_int
+    | "-." -> op build_fsub argv load_float
+    | "+." -> op build_fadd argv load_float
+    | "*." -> op build_fmul argv load_float
+    | "/." -> op build_fdiv argv load_float
+    | "<=." -> bin_op (build_fcmp Fcmp.Ole) argv load_float
+    | "<." -> bin_op (build_fcmp Fcmp.Olt) argv load_float
+    | "==." -> bin_op (build_fcmp Fcmp.Oeq) argv load_float
+    | ">." -> bin_op (build_fcmp Fcmp.Olt) argv load_float
+    | ">=." -> bin_op (build_fcmp Fcmp.Olt) argv load_float
     | "print_int" ->
         let ft = function_type unit_type [| integer_type |] in
         let f = declare_function "bin_print_int" ft the_module in
