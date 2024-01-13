@@ -131,16 +131,19 @@ module Codegen = struct
     helper (t, n)
 
   let codegen_imm named_values function_types = function
-    | ImmLit t ->
-        (match typed_value t with
-        | LInt n -> const_int integer_type n
-        | LFloat n -> const_float float_type n
-        | LBool b -> const_int bool_type (if b then 1 else 0)
-        | LUnit -> const_pointer_null unit_type
+    | ImmLit t -> (
+        match typed_value t with
+        | LInt n -> const_int integer_type n |> return
+        | LFloat n -> const_float float_type n |> return
+        | LBool b -> const_int bool_type (if b then 1 else 0) |> return
+        | LUnit -> const_pointer_null unit_type |> return
         | LString str ->
-            let str = String.length str - 2 |> String.sub str 1 in
-            build_global_stringptr str "" builder)
-        |> return
+            let len = String.length str in
+            let* str =
+              if len < 2 then error "Lenght of string withs quotes less that 2"
+              else String.length str - 2 |> String.sub str 1 |> return
+            in
+            build_global_stringptr str "" builder |> return)
     | ImmVal t -> (
         let name = str_name t in
         match
