@@ -109,12 +109,15 @@ module Codegen = struct
         | TUnit -> unit_type)
     | TyTuple ts -> List.map get_type ts |> Array.of_list |> struct_type contex
     | TyArrow _ as arr ->
-        let rec args = function
-          | TyArrow (arg, r) -> args r |> fun (ars, r) -> (arg :: ars, r)
-          | t -> ([], t)
+        let args =
+          let rec helper acc = function
+            | TyArrow (arg, r) -> helper (get_type arg :: acc) r
+            | t -> (List.rev acc, get_type t)
+          in
+          helper []
         in
         let args, r = args arr in
-        function_type (get_type r) (List.map get_type args |> Array.of_list)
+        function_type r (Array.of_list args)
     | TyVar _ -> ptr
 
   let rec rez_t = function TyArrow (_, rez) -> rez_t rez | t -> t
@@ -220,14 +223,13 @@ module Codegen = struct
   let codegen_predef_function named_values function_types op =
     let name = str_name op in
     let args =
-      let rec helper = function
+      let rec helper acc n = function
         | TyArrow (l, r) ->
-            let tl, n = helper l in
             let name = Printf.sprintf "%s_%d" name n in
-            (with_typ r name :: tl, n + 1)
-        | _ -> ([], 1)
+            helper (with_typ r name :: acc) (n + 1) l
+        | _ -> acc
       in
-      typ op |> helper |> fst |> List.rev
+      typ op |> helper [] 1 |> List.rev
     in
     let* { named_values; value = f }, function_types =
       codegen_sig named_values function_types op args
@@ -364,7 +366,7 @@ module Codegen = struct
 
         build_load (Array.get (subtypes t) ix) addr "loadaccesss" builder
         |> ret named_values
-    | _ -> error "never happen"
+    | _ -> error "Try apply something to constant"
 
   and codegen_local_var named_values function_types { name; e } =
     let name = str_name name in
