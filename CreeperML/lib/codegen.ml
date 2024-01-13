@@ -76,8 +76,8 @@ module Codegen = struct
     | _ -> f_else v
 
   let tmp_v v t =
-    let new_addr = build_alloca t "tm1000pnewaddr" builder in
-    let data = build_load t v "tm1000ptmp" builder in
+    let new_addr = build_alloca t "tmpptr" builder in
+    let data = build_load t v "tmp" builder in
     let (_ : Llvm.llvalue) = build_store data new_addr builder in
     new_addr
 
@@ -121,6 +121,14 @@ module Codegen = struct
     | TyVar _ -> ptr
 
   let rec rez_t = function TyArrow (_, rez) -> rez_t rez | t -> t
+
+  let type_at n t =
+    let rec helper = function
+      | t, 0 -> t
+      | TyArrow (_, r), n -> helper (r, n - 1)
+      | t, _ -> t
+    in
+    helper (t, n)
 
   let codegen_imm named_values function_types = function
     | ImmLit t ->
@@ -274,8 +282,8 @@ module Codegen = struct
       in
       Array.iteri alloc argv;
       let rz = apply_closure cl argv_adr argc in
-      (match (typ f |> rez_t, tmp) with
-      | TyGround TUnit, _ -> rz
+      (match (typ f |> type_at argc, tmp) with
+      | TyGround TUnit, _ | TyArrow _, _ -> rz
       | t, TMP -> get_type t |> tmp_v rz
       | _ -> rz)
       |> ret named_values
