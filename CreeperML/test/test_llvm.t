@@ -12,7 +12,7 @@
   $ ocaml input.ml
   120
   $ cat input.ml | ./test_llvm.exe
-  $ llc-16 --relocation-model=pic test-opt.ll
+  $ llc --relocation-model=pic test-opt.ll
   $ gcc test-opt.s ../lib/bindings.co -o test-opt
   $ ./test-opt
   120
@@ -25,7 +25,7 @@
   $ ocaml input.ml
   10
   $ cat input.ml | ./test_llvm.exe
-  $ llc-16 --relocation-model=pic test-opt.ll
+  $ llc --relocation-model=pic test-opt.ll
   $ gcc test-opt.s ../lib/bindings.co -o test-opt
   $ ./test-opt
   10
@@ -37,7 +37,7 @@
   $ ocaml input.ml
   727
   $ cat input.ml | ./test_llvm.exe
-  $ llc-16 --relocation-model=pic test-opt.ll
+  $ llc --relocation-model=pic test-opt.ll
   $ gcc test-opt.s ../lib/bindings.co -o test-opt
   $ ./test-opt
   727
@@ -50,7 +50,7 @@
   $ ocaml input.ml
   10
   $ cat input.ml | ./test_llvm.exe
-  $ llc-16 --relocation-model=pic test-opt.ll
+  $ llc --relocation-model=pic test-opt.ll
   $ gcc test-opt.s ../lib/bindings.co -o test-opt
   $ ./test-opt
   10
@@ -67,7 +67,7 @@
   $ ocaml input.ml
   5040
   $ cat input.ml | ./test_llvm.exe
-  $ llc-16 --relocation-model=pic test-opt.ll
+  $ llc --relocation-model=pic test-opt.ll
   $ gcc test-opt.s ../lib/bindings.co -o test-opt
   $ ./test-opt
   5040
@@ -87,7 +87,7 @@
   $ ocaml input.ml
   36
   $ cat input.ml | ./test_llvm.exe
-  $ llc-16 --relocation-model=pic test-opt.ll
+  $ llc --relocation-model=pic test-opt.ll
   $ gcc test-opt.s ../lib/bindings.co -o test-opt
   $ ./test-opt
   36
@@ -106,7 +106,7 @@
   $ ocaml input.ml
   5
   $ cat input.ml | ./test_llvm.exe
-  $ llc-16 --relocation-model=pic test-opt.ll
+  $ llc --relocation-model=pic test-opt.ll
   $ gcc test-opt.s ../lib/bindings.co -o test-opt
   $ ./test-opt
   5
@@ -125,7 +125,7 @@
   $ ocaml input.ml
   5
   $ cat input.ml | ./test_llvm.exe
-  $ llc-16 --relocation-model=pic test-opt.ll
+  $ llc --relocation-model=pic test-opt.ll
   $ gcc test-opt.s ../lib/bindings.co -o test-opt
   $ ./test-opt
   5
@@ -145,7 +145,7 @@
   $ ocaml input.ml
   5
   $ cat input.ml | ./test_llvm.exe
-  $ llc-16 --relocation-model=pic test-opt.ll
+  $ llc --relocation-model=pic test-opt.ll
   $ gcc test-opt.s ../lib/bindings.co -o test-opt
   $ ./test-opt
-  
+  5
