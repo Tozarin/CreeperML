@@ -141,7 +141,7 @@ module Codegen = struct
             let len = String.length str in
             let* str =
               if len < 2 then error "Lenght of string withs quotes less that 2"
-              else String.length str - 2 |> String.sub str 1 |> return
+              else len - 2 |> String.sub str 1 |> return
             in
             build_global_stringptr str "" builder |> return)
     | ImmVal t -> (
