@@ -26,17 +26,17 @@ typedef struct function_str
     cmptr fn_id;   // Id of function in asm code
 } function;
 
-extern void bin_print_int(const int i)
+void bin_print_int(const int i)
 {
     printf("%d\n", i);
 }
 
-extern void print_string_raw(const char *str)
+void print_string_raw(const char *str)
 {
     printf("%s\n", str);
 }
 
-extern void bin_print_string(const strr *str)
+void bin_print_string(const strr *str)
 {
     int len = str->len;
 
@@ -46,7 +46,7 @@ extern void bin_print_string(const strr *str)
     }
 }
 
-extern cmptr create_function(cmptr fn, cmptr argc, cmptr argv, cmptr arity, cmptr fn_id);
+cmptr create_function(cmptr fn, cmptr argc, cmptr argv, cmptr arity, cmptr fn_id);
 
 cmptr cm_malloc(size_t size)
 {
@@ -111,7 +111,7 @@ void print_function(function *clsr)
     printf("\n\n");
 }
 
-extern cmptr apply_args(function *clsr, cmptr argc, cmptr *argv)
+cmptr apply_args(function *clsr, cmptr argc, cmptr *argv)
 {
     // Clone closure object to avoid confusion
 
@@ -160,7 +160,7 @@ extern cmptr apply_args(function *clsr, cmptr argc, cmptr *argv)
     return (cmptr)clsr;
 }
 
-extern cmptr create_function(cmptr fn, cmptr argc, cmptr argv, cmptr arity, cmptr fn_id)
+cmptr create_function(cmptr fn, cmptr argc, cmptr argv, cmptr arity, cmptr fn_id)
 {
     function *clsr = (function *)cm_malloc(sizeof(function));
     clsr->arity = arity; // Summary size of all arguments
