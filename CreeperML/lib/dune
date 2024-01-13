@@ -25,7 +25,7 @@
  (deps bindings.c)
  (targets bindings.co)
  (action
-  (run gcc -w -shared %{deps} -o %{targets})))
+  (run gcc -shared %{deps} -o %{targets})))
 
 (library
  (name CreeperML)

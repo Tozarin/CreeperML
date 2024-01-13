@@ -50,7 +50,7 @@ extern cmptr create_function(cmptr fn, cmptr argc, cmptr argv, cmptr arity, cmpt
 
 cmptr cm_malloc(size_t size)
 {
-    return malloc(size);
+    return (cmptr)malloc(size);
 }
 
 cmptr call_n(function *closure)
@@ -93,6 +93,8 @@ cmptr call_n(function *closure)
         return closure->fn(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14]);
     case 16:
         return closure->fn(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15]);
+    default:
+        return (cmptr)closure;
     }
 }
 
@@ -114,14 +116,14 @@ extern cmptr apply_args(function *clsr, cmptr argc, cmptr *argv)
     // Clone closure object to avoid confusion
 
     function *clsr_old = clsr;
-    clsr = create_function(clsr_old->fn, clsr_old->argc, clsr_old->argv, clsr_old->arity, clsr_old->fn_id);
+    clsr = (function *)create_function((cmptr)clsr_old->fn, clsr_old->argc, (cmptr)clsr_old->argv, clsr_old->arity, clsr_old->fn_id);
 
     cmptr all_argc = clsr->argc + argc;
 
     // Merge arguments
     cmptr *clsr_argv = clsr->argv;
 
-    clsr->argv = cm_malloc(all_argc * sizeof(cmptr));
+    clsr->argv = (cmptr *)cm_malloc(all_argc * sizeof(cmptr));
 
     for (int i = 0; i < clsr->argc; i++)
         clsr->argv[i] = clsr_argv[i];
@@ -140,7 +142,7 @@ extern cmptr apply_args(function *clsr, cmptr argc, cmptr *argv)
     // Apply arguments
     if (remaining > 0)
     {
-        function *res = call_n(clsr);
+        function *res = (function *)call_n(clsr);
 
         for (int i = 0; i < remaining; i++)
             argv[i] = argv[i + applied];
@@ -155,17 +157,17 @@ extern cmptr apply_args(function *clsr, cmptr argc, cmptr *argv)
         return res;
     }
 
-    return clsr;
+    return (cmptr)clsr;
 }
 
 extern cmptr create_function(cmptr fn, cmptr argc, cmptr argv, cmptr arity, cmptr fn_id)
 {
     function *clsr = (function *)cm_malloc(sizeof(function));
     clsr->arity = arity; // Summary size of all arguments
-    clsr->fn = fn;
-    clsr->argv = argv;
+    clsr->fn = (cmptr(*)())fn;
+    clsr->argv = (cmptr*)argv;
     clsr->argc = argc;
     clsr->fn_id = fn_id;
 
-    return clsr;
+    return (cmptr)clsr;
 }
