@@ -88,20 +88,16 @@ module Codegen = struct
       [| cl; int_const argc; argv |]
       "applyclosure" builder
 
-  let try_find named_values name msg =
+  let try_find named_values name =
     match NamedValues.find_opt name named_values with
     | Some v -> (
         match v with
         | Var (bind, binder) -> binder bind
         | Val l -> ret named_values l)
-    | None -> error msg
+    | None -> String.cat "Can't find value " name |> error
 
   let try_find_opt named_values name =
-    match
-      String.cat "try find opt cant find " name |> try_find named_values name
-    with
-    | Ok r -> Some r
-    | _ -> None
+    match try_find named_values name with Ok r -> Some r | _ -> None
 
   let rec get_type = function
     | TyGround gr -> (
@@ -239,8 +235,7 @@ module Codegen = struct
     let bb = append_block contex "entry" f in
     position_at_end bb builder;
     let* argv =
-      monadic_map args (fun a ->
-          try_find named_values (str_name a) "" >>| value)
+      monadic_map args (fun a -> try_find named_values (str_name a) >>| value)
       >>| Array.of_list
     in
     let* ret_val = codegen_predef name argv in
@@ -361,7 +356,7 @@ module Codegen = struct
         ret named_values rz
     | ATupleAccess (ImmVal name, ix) ->
         let n = str_name name in
-        let* str = try_find named_values n "Can't find tuple" in
+        let* str = try_find named_values n in
         let t = typ name |> get_type in
         let addr =
           build_gep t str.value [| int_const 0; int_const ix |] "access" builder
