@@ -377,7 +377,10 @@ module Codegen = struct
 
         build_load (Array.get (subtypes t) ix) addr "loadaccesss" builder
         |> ret named_values
-    | _ -> error "Try apply something to constant"
+    | AApply (ImmLit _, _) | ATupleAccess (ImmLit _, _) ->
+        error
+          {|Case of over-representation of anf-ast. It never occurs because of
+            typecheck|}
 
   and codegen_local_var named_values function_types { name; e } =
     let name = str_name name in
