@@ -25,7 +25,7 @@ module Codegen = struct
   let value { named_values = _; value } = value
   let ret named_values value = { named_values; value } |> return
 
-  module FuncrionTypes = Map.Make (String)
+  module FunctionTypes = Map.Make (String)
 
   let float_type = float_type contex
   let bool_type = i32_type contex
@@ -141,7 +141,7 @@ module Codegen = struct
         with
         | _, Some f -> return f.value
         | Some f, _ ->
-            FuncrionTypes.find name function_types
+            FunctionTypes.find name function_types
             |> arity |> alloc_closure f [||] |> return
         | _ ->
             Printf.sprintf "Can't find function/value at number %s" name
@@ -163,9 +163,9 @@ module Codegen = struct
     let function_types =
       List.fold_left2
         (fun function_types name -> function
-          | TyArrow _ as t -> FuncrionTypes.add name t function_types
+          | TyArrow _ as t -> FunctionTypes.add name t function_types
           | _ -> function_types)
-        (FuncrionTypes.add name orig_ft function_types)
+        (FunctionTypes.add name orig_ft function_types)
         args_names args_ts
     in
     let named_values =
@@ -445,7 +445,7 @@ module Codegen = struct
       monadic_fold
         (fun (named_values, function_types) op ->
           codegen_predef_function named_values function_types op)
-        (NamedValues.empty, FuncrionTypes.empty)
+        (NamedValues.empty, FunctionTypes.empty)
         Std.Std.operators
     in
     let* _ =
